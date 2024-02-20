@@ -68,6 +68,12 @@ public:
         rect.setPosition((float)curr_pos.x * TILE_SIZE, (float)curr_pos.y * TILE_SIZE);
     }
 
+    void move(const sf::Vector2i& pos) {
+        curr_pos.x += pos.x;
+        curr_pos.y += pos.y;
+        rect.setPosition(curr_pos.x * TILE_SIZE, curr_pos.y * TILE_SIZE);
+    }
+
     bool operator==(const Block& other) {
         return (curr_pos.x == other.curr_pos.x) && (curr_pos.y == other.curr_pos.y);
     }
@@ -78,6 +84,7 @@ class Tetromino {
 private:
     std::vector<std::array<Block, 4>> m_block_arr;
     unsigned short m_curr_state = 0;
+    unsigned short m_tot_state = 1;
 
 public:
     char shape;
@@ -95,6 +102,7 @@ public:
                 m_block_arr[i][j] = Block(b_color, cfg.x[j] + mid_offset, cfg.y[j]);
             }
         }
+        m_tot_state = tetro_config.size();
 
 
     }
@@ -110,14 +118,15 @@ public:
 
     void move(const sf::Vector2i &pos) {
         for (Block &b : m_block_arr[m_curr_state]) {
-            auto &b_pos = b.curr_pos;
-            b_pos.x += pos.x;
-            b_pos.y += pos.y;
-            b.rect.setPosition(b_pos.x * TILE_SIZE, b_pos.y * TILE_SIZE);
+            b.move(pos);
         }
 
         m_past_move = pos;
 
+    }
+
+    void rotate() {
+        m_curr_state = (m_curr_state + 1) % m_tot_state;
     }
 
     void resolve_collision() {
@@ -168,7 +177,7 @@ void draw(sf::RenderWindow &window) {
 bool check_collision(Tetromino &player, std::vector<Block> &block_list) {
     for (Block& p : player.get_arr()) {
         auto& p_pos = p.curr_pos;
-        if (p_pos.x < 0 or p_pos.x > FIELD_BLOCK_W or p_pos.y >= FIELD_BLOCK_H) {
+        if (p_pos.x < 0 or (p_pos.x+1) > FIELD_BLOCK_W or p_pos.y >= FIELD_BLOCK_H) {
             return true;
         }
     }
@@ -233,6 +242,7 @@ void clear_row(std::vector<Block>& block_list) {
             block_to_clear.push_back(b);
         }
 
+
     }
 
     block_list.erase(std::remove_if(block_list.begin(), block_list.end(),
@@ -240,6 +250,10 @@ void clear_row(std::vector<Block>& block_list) {
             return std::find(block_to_clear.begin(), block_to_clear.end(), element) != block_to_clear.end();
         }),
         block_list.end());
+
+    for (auto& b : block_list) {
+        b.move({ 0, 1 });
+    }
 }
 
 int main() {
@@ -250,7 +264,7 @@ int main() {
     sf::Clock clock;
     float tot_elapsed = 0;
 
-    Tetromino player{ 'O' };
+    Tetromino player{ 'J' };
 
     std::vector<Block> block_list = {};
 
@@ -258,8 +272,8 @@ int main() {
     {
         sf::Time elapsed = clock.restart();
         tot_elapsed += elapsed.asMilliseconds();
-        if (tot_elapsed >= 80) {
-            tot_elapsed -= 80;
+        if (tot_elapsed >= 100) {
+            tot_elapsed -= 100;
             player.move({ 0, 1 });
         }
 
@@ -274,6 +288,9 @@ int main() {
 
                 else if (event.key.code == sf::Keyboard::Left)
                     player.move({ -1, 0 });
+
+                else if (event.key.code == sf::Keyboard::Space)
+                    player.rotate();
 
             }
 
@@ -291,7 +308,7 @@ int main() {
             clear_row(block_list);
 
 
-            player = Tetromino{ 'O' };
+            player = Tetromino{ 'J' };
             if (check_collision(player, block_list)) {
                 std::cout << "You lost";
                 window.close();
