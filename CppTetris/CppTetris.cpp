@@ -1,4 +1,5 @@
 #include <SFML/Graphics.hpp>
+#include <algorithm>
 #include <iostream>
 #include <string>
 #include <array>
@@ -11,8 +12,8 @@
 
 
 const sf::Color FIELD_COLOUR = sf::Color({ 48, 39, 32 });
-const short TILE_SIZE = 50;
-short FIELD_BLOCK_W = 10, FIELD_BLOCK_H = 20;
+const short TILE_SIZE = 50.0f;
+const short FIELD_BLOCK_W = 10, FIELD_BLOCK_H = 20;
 short FIELD_RES[2] = {FIELD_BLOCK_W * TILE_SIZE, FIELD_BLOCK_H * TILE_SIZE};
 float OUTLINE_THICKNESS_BLOCK = 3.0f;
 sf::Color OUTLINE_COLOR_BLOCK = sf::Color::White;
@@ -52,6 +53,7 @@ static void init_tetromino_settings() {
 }
 
 
+
 class Block {
 public:
     sf::Vector2i curr_pos;
@@ -66,101 +68,244 @@ public:
         rect.setPosition((float)curr_pos.x * TILE_SIZE, (float)curr_pos.y * TILE_SIZE);
     }
 
-    void move(sf::Vector2i pos) {
-        curr_pos.x += pos.x;
-        curr_pos.x += pos.x;
-        rect.setPosition(curr_pos.x * TILE_SIZE, curr_pos.y * TILE_SIZE);
-
+    bool operator==(const Block& other) {
+        return (curr_pos.x == other.curr_pos.x) && (curr_pos.y == other.curr_pos.y);
     }
 
 };
 
 class Tetromino {
 private:
-    std::vector<std::array<Block, 4>> arr;
-    unsigned short curr_state = 0;
+    std::vector<std::array<Block, 4>> m_block_arr;
+    unsigned short m_curr_state = 0;
 
 public:
     char shape;
+    sf::Vector2i m_past_move = {0, 0};
 
     Tetromino(char shape) : shape(shape) {
         sf::Color b_color = TetrominoColor.at(shape);
-        std::vector<TetrominoConfig> all_tetro_config = TetrominoArr.at(shape);
-        for (size_t i = 0; i < all_tetro_config.size(); i++) {
-            arr.push_back({});
+        std::vector<TetrominoConfig> tetro_config = TetrominoArr.at(shape);
+
+        int mid_offset = FIELD_BLOCK_W / 2 - 1;
+        for (size_t i = 0; i < tetro_config.size(); i++) {
+            m_block_arr.push_back({});
             for (size_t j = 0; j < 4; j++) {
-                auto cfg = all_tetro_config[i];
-                arr[i][j] = Block(b_color, cfg.x[j], cfg.y[j]);
+                TetrominoConfig cfg = tetro_config[i];
+                m_block_arr[i][j] = Block(b_color, cfg.x[j] + mid_offset, cfg.y[j]);
             }
         }
 
+
+    }
+    std::array<Block, 4> get_arr() {
+        return m_block_arr[m_curr_state];
     }
 
-    void draw(sf::RenderWindow *win) {
-        for (Block b : arr[curr_state]) {
-            win->draw(b.rect);
+    void draw(sf::RenderWindow &win) {
+        for (Block &b : m_block_arr[m_curr_state]) {
+            win.draw(b.rect);
         }
     }
 
+    void move(const sf::Vector2i &pos) {
+        for (Block &b : m_block_arr[m_curr_state]) {
+            auto &b_pos = b.curr_pos;
+            b_pos.x += pos.x;
+            b_pos.y += pos.y;
+            b.rect.setPosition(b_pos.x * TILE_SIZE, b_pos.y * TILE_SIZE);
+        }
+
+        m_past_move = pos;
+
+    }
+
+    void resolve_collision() {
+        if (m_past_move.y > 0) {
+            move({ 0, -1 });
+            return;
+        }
+
+        if (m_past_move.x < 0) {
+            move({ 1, 0 });
+            return;
+        }
+        if (m_past_move.x > 0) {
+            move({ -1, 0 });
+            return;
+        }
+    }
+
+    void print_pos() {
+        for (Block& b : m_block_arr[m_curr_state]) {
+            printf("(%d, %d)", b.curr_pos.x, b.curr_pos.y);
+        }
+        std::cout << '\n';
+    }
+
 };
+void draw_grid(sf::RenderWindow& window) {
+    sf::RectangleShape rect(sf::Vector2f(TILE_SIZE, TILE_SIZE));
+    rect.setFillColor(FIELD_COLOUR);
+    rect.setOutlineColor(sf::Color::Blue);
+    rect.setOutlineThickness(3.0f);
 
-class TetrisApp {
-public:
-    sf::RenderWindow* window;
-    TetrisApp(sf::RenderWindow* win) {
-        window = win;
+    for (int i = 0; i < FIELD_BLOCK_W; i++) {
+        for (int j = 0; j < FIELD_BLOCK_H; j++) {
+            rect.setPosition(i * TILE_SIZE, j * TILE_SIZE);
+
+            window.draw(rect);
+        }
     }
+}
 
-    void update() {
-        window->clear();
-        draw();
-        window->display();
 
+void draw(sf::RenderWindow &window) {
+    draw_grid(window);
+}
+
+
+bool check_collision(Tetromino &player, std::vector<Block> &block_list) {
+    for (Block& p : player.get_arr()) {
+        auto& p_pos = p.curr_pos;
+        if (p_pos.x < 0 or p_pos.x > FIELD_BLOCK_W or p_pos.y >= FIELD_BLOCK_H) {
+            return true;
+        }
     }
-
-    void draw() {
-        draw_grid();
-    }
-
-    void draw_grid() {
-        sf::RectangleShape rect(sf::Vector2f(TILE_SIZE, TILE_SIZE));
-        rect.setFillColor(FIELD_COLOUR);
-        rect.setOutlineColor(sf::Color::Blue);
-        rect.setOutlineThickness(3.0f);
-        Tetromino test('O');
-
-        for (int i = 0; i < FIELD_BLOCK_W; i++) {
-            for (int j = 0; j < FIELD_BLOCK_H; j++) {
-                rect.setPosition(i * TILE_SIZE, j * TILE_SIZE);
-
-                window->draw(rect);
+    for (Block& b : block_list) {
+        auto& b_pos = b.curr_pos;
+        for (Block& p : player.get_arr()) {
+            auto& p_pos = p.curr_pos;
+            if (p_pos.x == b_pos.x and p_pos.y == b_pos.y) {
+                return true;
             }
         }
-        test.draw(window);
+    }
+
+    return false;
+
+
+}
+
+
+
+void clear_row(std::vector<Block>& block_list) {
+    std::map<unsigned short, std::array<bool, FIELD_BLOCK_W>> game_map;
+
+    for (size_t i = 0; i < FIELD_BLOCK_H; i++) {
+        game_map[i] = {};
+        for (size_t j = 0; j < FIELD_BLOCK_W; j++) {
+            game_map[i][j] = false;
+        }
+    }
+
+    for (Block& b : block_list) {
+        auto& b_pos = b.curr_pos;
+        game_map[b_pos.y][b_pos.x] = true;
+    }
+
+    std::vector<unsigned short> row_num_arr = {};
+    for (const auto& pair : game_map) {
+        auto& row_num = pair.first;
+        auto & row_arr = pair.second;
+
+        bool not_full = false;
+        for (auto& val : row_arr) {
+            if (val != true) {
+                not_full = true;
+                break;
+            }
+
+        }
+
+        if (not not_full) {
+            row_num_arr.push_back(row_num);
+        }
+    }
+
+    if (row_num_arr.size() < 1)
+        return;
+       
+    
+    std::vector<Block> block_to_clear = {};
+    for (auto& b : block_list) {
+        if (std::find(row_num_arr.begin(), row_num_arr.end(), b.curr_pos.y) != row_num_arr.end()) {
+            block_to_clear.push_back(b);
+        }
 
     }
-};
 
-
+    block_list.erase(std::remove_if(block_list.begin(), block_list.end(),
+        [&block_to_clear](const Block& element) {
+            return std::find(block_to_clear.begin(), block_to_clear.end(), element) != block_to_clear.end();
+        }),
+        block_list.end());
+}
 
 int main() {
     init_tetromino_settings();
     sf::RenderWindow window(sf::VideoMode(FIELD_RES[0], FIELD_RES[1]), "CppTetris");
-    TetrisApp game(&window);
+    window.setFramerateLimit(60);
 
+    sf::Clock clock;
+    float tot_elapsed = 0;
 
+    Tetromino player{ 'O' };
+
+    std::vector<Block> block_list = {};
 
     while (window.isOpen())
     {
+        sf::Time elapsed = clock.restart();
+        tot_elapsed += elapsed.asMilliseconds();
+        if (tot_elapsed >= 80) {
+            tot_elapsed -= 80;
+            player.move({ 0, 1 });
+        }
+
         sf::Event event;
         while (window.pollEvent(event))
         {
             if (event.type == sf::Event::Closed)
                 window.close();
+            if (event.type == sf::Event::KeyPressed) {
+                if (event.key.code == sf::Keyboard::Right)
+                    player.move({ 1, 0 });
+
+                else if (event.key.code == sf::Keyboard::Left)
+                    player.move({ -1, 0 });
+
+            }
 
         }
 
-        game.update();
+        if (check_collision(player, block_list)) {
+            player.resolve_collision();
+
+            if (player.m_past_move.y == 0)
+                continue;
+
+            for (Block& b: player.get_arr())
+                block_list.push_back(b);
+
+            clear_row(block_list);
+
+
+            player = Tetromino{ 'O' };
+            if (check_collision(player, block_list)) {
+                std::cout << "You lost";
+                window.close();
+            }
+        }
+
+
+        window.clear();
+        draw_grid(window);
+        player.draw(window);
+        for (auto& block : block_list) {
+            window.draw(block.rect);
+        }
+        window.display();
     }
 
     return 0;
