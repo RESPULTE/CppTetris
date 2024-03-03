@@ -186,11 +186,10 @@ public:
 		m_clear_block(block_arr);
 
 		int num_cleared_row = row_to_clear.size();
+		auto last_row = *std::max_element(row_to_clear.begin(), row_to_clear.end());
 		for (auto& b : *m_inactive_block_list) {
-			for (auto& row : row_to_clear) {
-				if (b.curr_pos.y < row)
-					b.move({ 0, num_cleared_row });
-			}
+			if (b.curr_pos.y < last_row)
+				b.move({ 0, num_cleared_row });
 		}
 
 		LOG("'clear_row()' executed");
@@ -652,6 +651,7 @@ int main() {
 					LOG("game speed increased");
 				}
 				player = Tetromino{};
+				LOG("new tetromino spawned")
 			}
 
 			else if (check_lost(player.get_block_arr())) {
