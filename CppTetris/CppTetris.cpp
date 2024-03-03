@@ -186,12 +186,6 @@ public:
 		m_clear_block(block_arr);
 
 		int num_cleared_row = row_to_clear.size();
-		//std::sort(inactive_block_list.begin(), inactive_block_list.end(),
-		//	[](const Block& a, const Block& b) -> bool
-		//	{
-		//		return a.curr_pos.y > b.curr_pos.y;
-		//	}
-		//);
 		for (auto& b : *m_inactive_block_list) {
 			for (auto& row : row_to_clear) {
 				if (b.curr_pos.y < row)
@@ -303,25 +297,36 @@ public:
 		switch (new_move) {
 		case Up:
 			move.y = -1;
+			LOG("moved Up");
+
 			break;
 
 		case Down:
 			move.y = 1;
+			LOG("moved Down");
+
 			break;
 
 		case Left:
 			move.x = -1;
+			LOG("moved Left");
+
 			break;
 
 		case Right:
 			move.x = 1;
+			LOG("moved Right");
+
 			break;
 
 		case Drop:
+			LOG("dropped");
 
 			return drop();
 
 		case Rotate:
+			LOG("rotated");
+
 			return rotate();
 		}
 
@@ -369,7 +374,12 @@ public:
 	}
 
 	void _rotate() {
-		m_curr_state = (m_curr_state - 1) % m_tot_state;
+		LOG("rotation reversed");
+		auto new_state = m_curr_state - 1;
+		// in case the state is negative
+		new_state = (new_state >= 0) ? new_state : m_tot_state - 1;
+
+		m_curr_state = (new_state) % m_tot_state;
 		TetrominoConfig cfg = m_all_state[m_curr_state];
 		for (size_t i = 0; i < 4; i++) {
 			Block& b = m_block_arr[i];
@@ -378,26 +388,34 @@ public:
 	}
 
 	void revert_past_state() {
+		LOG("state revertion activated");
+
 		switch (m_past_move)
 		{
 		case Drop:
 			move(Up);
+
 			break;
 
 		case Down:
 			move(Up);
+
 			break;
 
 		case Left:
 			move(Right);
+
 			break;
 
 		case Right:
 			move(Left);
+
 			break;
 
 		case Rotate:
+
 			_rotate();
+
 			break;
 
 		}
@@ -488,7 +506,7 @@ int main() {
 	auto scoreboard_size = scoreboard.getGlobalBounds().width;
 	scoreboard.setPosition(FIELD_RES[0] - (static_cast<float>(TILE_SIZE * MENU_SIZE) / 2 + scoreboard_size / 2), FIELD_RES[1] * 0.45);
 
-	sf::Text game_title("TETRIS", font, 120);
+	sf::Text game_title("Tetris", font, 120);
 	auto game_title_size = game_title.getGlobalBounds().width;
 	game_title.setPosition(FIELD_RES[0] / 2 - game_title_size / 2, -40);
 
@@ -521,24 +539,20 @@ int main() {
 				switch (event.key.code) {
 				case sf::Keyboard::Right:
 					player_move = Right;
-					LOG("moved Right");
 					break;
 
 				case sf::Keyboard::Left:
 					player_move = Left;
-					LOG("moved left");
 
 					break;
 
 				case sf::Keyboard::Up:
 					player_move = Rotate;
-					LOG("rotated");
 
 					break;
 
 				case sf::Keyboard::Down:
 					player_move = Drop;
-					LOG("moved down");
 
 					break;
 
@@ -619,7 +633,6 @@ int main() {
 			PlayerMove past_move = player.get_past_move();
 			player.revert_past_state();
 			if (past_move != Down) {
-				LOG("'side' collision resolved");
 				continue;
 			}
 			player.set_inactive();
@@ -651,7 +664,6 @@ int main() {
 
 			else {
 				player = Tetromino{};
-				LOG("'down' collision resolved");
 			}
 		}
 		window.clear();
