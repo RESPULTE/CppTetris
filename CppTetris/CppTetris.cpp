@@ -11,8 +11,8 @@
 #include <string>
 #include <vector>
 
-// reformatting ideas:
-// draw the shapes onto a separate texture before displaying it on the main window
+
+#define LOG(x) std::cout << x << std::endl;
 
 
 
@@ -21,10 +21,15 @@ const short TILE_SIZE = 50.0f;
 const short FIELD_BLOCK_W = 10, FIELD_BLOCK_H = 22;
 const short MENU_SIZE = 6;
 short FIELD_RES[2] = { (FIELD_BLOCK_W + MENU_SIZE) * TILE_SIZE, (FIELD_BLOCK_H + 1) * TILE_SIZE };
-const float OUTLINE_THICKNESS_BLOCK = 3.0f;
 const char ALL_TETROMINO_TYPE[7] = { 'I', 'J', 'O', 'L', 'S', 'Z', 'T' };
+
 const unsigned short TOP_SCREEN_BLOCK_OFFSET = 2;
 const unsigned short LEFT_SCREEN_BLOCK_OFFSET = 1;
+const float OUTLINE_THICKNESS_BLOCK = 3.0f;
+
+const short GAME_SPEED_INCREMENT = -25;
+const unsigned short INITIAL_GAME_SPEED_MS = 300;
+const unsigned short SCORE_TO_INCREMENT_GAME_SPEED = 5;
 
 
 sf::Color OUTLINE_COLOR_BLOCK = sf::Color::White;
@@ -54,19 +59,18 @@ static void init_tetromino_settings() {
 		{{0, 1, 2, 3}, {0, 0, 0, 0}}  // Vertical
 	};
 
-	TetrominoArr['J'] = {
-		{{0, 0, 0, 1}, {0, 1, 2, 2}}, // Original
-		{{0, 1, 2, 2}, {0, 0, 0, 1}}, // 90 
-		{{0, 0, 0, 1}, {2, 0, 1, 2}}, // 180 
-		{{0, 1, 2, 2}, {1, 1, 1, 0}}  // 270 
+	TetrominoArr['L'] = {
+		{{1, 1, 1, 0}, {0, 1, 2, 2}},  // 270 
+		{{0, 1, 2, 2}, {0, 0, 0, 1}}, // 180 
+		{{1, 1, 1, 2}, {0, 1, 2, 0}}, // Original
+		{{0, 0, 1, 2}, {0, 1, 1, 1}}, // 90 
 	};
 
-	TetrominoArr['L'] = {
-		{{0, 1, 2, 2}, {0, 0, 0, 1}}, // Original
-		{{1, 1, 2, 1}, {1, 0, 0, 2}}, // 90 
-		{{0, 0, 1, 2}, {0, 1, 1, 1}}, // 180
-		{{0, 1, 1, 1}, {2, 2, 1, 0}}  // 270 
-		// ... other rotations
+	TetrominoArr['J'] = {
+		{{1, 1, 1, 2}, {0, 1, 2, 2}}, // 90 
+		{{0, 1, 2, 2}, {1, 1, 1, 0}}, // Original
+		{{0, 1, 2, 0}, {1, 1, 1, 2}}, // 180
+		{{0, 1, 1, 1}, {0, 2, 1, 0}},  // 270 
 	};
 
 	TetrominoArr['O'] = {
@@ -119,6 +123,7 @@ private:
 			}
 
 		}
+		LOG("'m_get_block_to_clear()' executed");
 		return block_to_clear;
 	}
 
@@ -130,6 +135,7 @@ private:
 				return std::find(block_to_clear.begin(), block_to_clear.end(), element) != block_to_clear.end();
 			}),
 			arr->end());
+		LOG("'m_clear_block()' executed");
 
 
 
@@ -176,17 +182,24 @@ public:
 
 	static bool clear_row(const std::vector<unsigned short>& row_to_clear) {
 		std::vector<Block> block_arr = m_get_block_to_clear(row_to_clear);
-		if (block_arr.size() == 0)
-			return false;
 
 		m_clear_block(block_arr);
-		auto lowest_row_cleared_it = std::max_element(row_to_clear.begin(), row_to_clear.end());
 
+		int num_cleared_row = row_to_clear.size();
+		//std::sort(inactive_block_list.begin(), inactive_block_list.end(),
+		//	[](const Block& a, const Block& b) -> bool
+		//	{
+		//		return a.curr_pos.y > b.curr_pos.y;
+		//	}
+		//);
 		for (auto& b : *m_inactive_block_list) {
-			if (b.curr_pos.y < *lowest_row_cleared_it) {
-				b.move({ 0, 1 });
+			for (auto& row : row_to_clear) {
+				if (b.curr_pos.y < row)
+					b.move({ 0, num_cleared_row });
 			}
 		}
+
+		LOG("'clear_row()' executed");
 
 		return true;
 	}
@@ -463,6 +476,7 @@ int main() {
 	bool cached_player_move = false;
 
 	int player_score = 0;
+	int block_speed_ms = INITIAL_GAME_SPEED_MS;
 	bool paused = false;
 	bool lost = false;
 	bool collided = false;
@@ -496,6 +510,7 @@ int main() {
 				collided = player.move(player_move);
 				cached_player_move = false;
 				player_move = None;
+				LOG("executed cached move");
 				break;
 			}
 
@@ -506,29 +521,42 @@ int main() {
 				switch (event.key.code) {
 				case sf::Keyboard::Right:
 					player_move = Right;
+					LOG("moved Right");
 					break;
 
 				case sf::Keyboard::Left:
 					player_move = Left;
+					LOG("moved left");
+
 					break;
 
 				case sf::Keyboard::Up:
 					player_move = Rotate;
+					LOG("rotated");
+
 					break;
 
 				case sf::Keyboard::Down:
 					player_move = Drop;
+					LOG("moved down");
+
 					break;
 
 				case sf::Keyboard::Space:
 					paused = not paused;
+
 					if (lost) {
 						Block::reset();
 						player = Tetromino{};
 
-						lost = false;
+						scoreboard.setString("Score: 0");
+						player_score = 0;
 
+						lost = false;
+						LOG("new game started");
 					}
+					else
+						LOG(((paused) ? "game paused" : "game resumed"));
 					break;
 
 
@@ -568,11 +596,12 @@ int main() {
 
 		tot_elapsed += elapsed.asMilliseconds();
 
-		if (tot_elapsed >= 150) {
+		if (tot_elapsed >= block_speed_ms) {
 			if (player_move != None) {
 				cached_player_move = true;
+				LOG("cached player move");
 			}
-			tot_elapsed -= 150;
+			tot_elapsed -= block_speed_ms;
 			collided = player.move(Down);
 		}
 
@@ -583,26 +612,38 @@ int main() {
 
 
 		if (collided) {
+			LOG("collision detected");
+
 			collided = false;
 
 			PlayerMove past_move = player.get_past_move();
 			player.revert_past_state();
 			if (past_move != Down) {
+				LOG("'side' collision resolved");
 				continue;
 			}
 			player.set_inactive();
+			LOG("player set inactive");
 
 			std::vector<unsigned short> row_to_clear = check_row_to_clear(Block::get_collision_map());
 			unsigned short num_row = row_to_clear.size();
 			if (num_row >= 1) {
+				LOG("rows detected to clear: " + std::to_string(num_row));
 				Block::clear_row(row_to_clear);
+				LOG("rows cleared");
+
 				player_score += num_row;
 				scoreboard.setString("Score: " + std::to_string(player_score));
+				if (player_score % 5 == 0) {
+					block_speed_ms -= GAME_SPEED_INCREMENT;
+					LOG("game speed increased");
+				}
+				player = Tetromino{};
 			}
 
 			else if (check_lost(player.get_block_arr())) {
-				scoreboard.setString("Score: 0");
-				player_score = 0;
+				LOG("player lost");
+
 
 				paused = true;
 				lost = true;
@@ -610,6 +651,7 @@ int main() {
 
 			else {
 				player = Tetromino{};
+				LOG("'down' collision resolved");
 			}
 		}
 		window.clear();
