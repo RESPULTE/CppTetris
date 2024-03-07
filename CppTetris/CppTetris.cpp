@@ -27,7 +27,7 @@ const unsigned short TOP_SCREEN_BLOCK_OFFSET = 2;
 const unsigned short LEFT_SCREEN_BLOCK_OFFSET = 1;
 const float OUTLINE_THICKNESS_BLOCK = 3.0f;
 
-const short GAME_SPEED_INCREMENT = -25;
+const short GAME_SPEED_INCREMENT = 30;
 const unsigned short INITIAL_GAME_SPEED_MS = 300;
 const unsigned short SCORE_TO_INCREMENT_GAME_SPEED = 5;
 
@@ -55,8 +55,11 @@ static void init_tetromino_settings() {
 	std::srand(static_cast<unsigned int>(std::time(nullptr)));
 
 	TetrominoArr['I'] = {
-		{{0, 0, 0, 0}, {0, 1, 2, 3}}, // Horizontal
-		{{0, 1, 2, 3}, {0, 0, 0, 0}}  // Vertical
+		{{2, 2, 2, 2}, {0, 1, 2, 3}}, // Horizontal
+		{{0, 1, 2, 3}, {1, 1, 1, 1}},  // Vertical
+		{ {2, 2, 2, 2}, {0, 1, 2, 3}}, // Horizontal
+		{{0, 1, 2, 3}, {2, 2, 2, 2}},  // Vertical
+
 	};
 
 	TetrominoArr['L'] = {
@@ -646,9 +649,9 @@ int main() {
 
 				player_score += num_row;
 				scoreboard.setString("Score: " + std::to_string(player_score));
-				if (player_score % 5 == 0) {
+				if (player_score % SCORE_TO_INCREMENT_GAME_SPEED == 0) {
 					block_speed_ms -= GAME_SPEED_INCREMENT;
-					LOG("game speed increased");
+					LOG("game speed increased, new game speed: " + std::to_string(block_speed_ms));
 				}
 				player = Tetromino{};
 				LOG("new tetromino spawned")
